@@ -1,0 +1,12 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+
+# Material vom Dozenten (nicht öffentlich teilen, Video ist zu groß für GitHub)
+Video/
+Praktikumsblaetter/
+Bilder/
+
+# PyCharm: persönliche Einstellungen
+.idea/workspace.xml
