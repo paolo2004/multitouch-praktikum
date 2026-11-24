@@ -1,13 +1,19 @@
-# Praktikum 1, Teil 2 – Blob Detection mit OpenCV
+# Multitouch-Praktikum – Fingererkennung, Tracking und TUIO
 
-## Ziel
+Das Programm erkennt Fingerspitzen im Video einer Multitouch-Kamera (Infrarot),
+gibt jedem Finger eine feste ID und schickt die Berührungen als **TUIO-Cursor**
+über das Netzwerk an andere Anwendungen.
 
-Das Programm erkennt Fingerspitzen in einem Video einer Multitouch-Kamera (Infrarot).
-Jede Fingerspitze, die die Oberfläche berührt, wird als **Blob** gefunden.
-Für jeden Blob bestimmt das Programm **Position** (Mittelpunkt x, y) und **Größe**
-(Breite, Höhe, Winkel einer Ellipse) und zeichnet ihn ins Bild.
+| Praktikum | Thema | Code |
+|---|---|---|
+| 1 | Blob Detection mit OpenCV | `src/blob_detection.py` |
+| 2 | Blob Tracking (Nearest Neighbour) | `src/blob_tracking.py` |
+| 3 | Touches per TUIO senden | `src/tuio_sender.py` |
 
-Wie gefordert wird das **Video** verwendet, nicht die zwei Einzelbilder aus Teil 1.
+```
+Video → Blob Detection → Blob Tracking → TUIO-Server ──UDP:3333──→ TUIO-Client
+        (Praktikum 1)    (Praktikum 2)   (Praktikum 3)              (TuioDump, TuioDemo, …)
+```
 
 ## Umgebung
 
@@ -15,18 +21,44 @@ Wie gefordert wird das **Video** verwendet, nicht die zwei Einzelbilder aus Teil
 |---|---|
 | Python | 3.12 |
 | Paketverwaltung | uv |
-| Bibliothek | opencv-python (OpenCV 5.0.0) |
-| Code | `src/blob_detection.py` |
+| Bibliotheken | `opencv-python` (OpenCV 5.0.0), `python-tuio`, `python-osc` |
 | Video | `Video/mt_camera_raw.AVI` |
 
 **Starten:**
 
 ```bash
+uv sync
 uv run python src/blob_detection.py
 ```
 
 Der Pfad zum Video wird aus dem Ort der Python-Datei berechnet (`Path(__file__)`).
 Darum funktioniert das Programm unabhängig vom Arbeitsverzeichnis.
+
+**Projektstruktur:**
+
+```
+src/
+  blob_detection.py   Pipeline, Fenster, Hauptschleife (run)
+  blob_tracking.py    update_tracks: IDs über mehrere Frames
+  tuio_sender.py      TUIO-Server, Tracks → Cursor
+Screenshots/          Bilder für dieses README
+GIMP/                 Ergebnis von Praktikum 1, Teil 1
+```
+
+`Video/`, `Bilder/`, `Praktikumsblaetter/` und `dump und demo/` sind Material vom
+Dozenten und nicht im Repository (siehe `.gitignore`).
+
+---
+
+# Praktikum 1, Teil 2 – Blob Detection mit OpenCV
+
+## Ziel
+
+Jede Fingerspitze, die die Oberfläche berührt, wird als **Blob** gefunden.
+Für jeden Blob bestimmt das Programm **Position** (Mittelpunkt x, y) und **Größe**
+(Breite, Höhe, Winkel einer Ellipse) und zeichnet ihn ins Bild.
+
+Wie gefordert wird das **Video** verwendet, nicht die zwei Einzelbilder aus Teil 1.
 
 ## Eigenschaften des Videos
 
@@ -199,7 +231,7 @@ meistens schräg berührt. Der Winkel zeigt die Richtung des Fingers.
 | `BLUR_KERNEL` (Hochpass) | 15 | Größer als eine Fingerspitze, damit die Handfläche verschwindet und die Fingerspitze bleibt |
 | `SMOOTH_KERNEL` | 5 | Entfernt kleines Rauschen, Fingerspitzen bleiben |
 | `THRESHOLD` | 10 | Am Videoanfang (ohne Hand) ist das Binärbild komplett schwarz, pro Fingerspitze gibt es einen weißen Fleck |
-| `MIN_AREA` | 15 | Bei Frame 100 bleiben genau die 10 sichtbaren Fingerspitzen übrig |
+| `MIN_AREA` | 15 (Praktikum 1), aktuell 2 im Code | Bei Frame 100 bleiben mit 15 genau die 10 sichtbaren Fingerspitzen übrig |
 | Mindestanzahl Punkte | 5 | Minimum für `cv2.fitEllipse` |
 
 **So habe ich `MIN_AREA` gefunden:** Bei Frame 100 gab es 15 Konturen. Ihre Flächen,
@@ -222,7 +254,7 @@ Schiebereglern (Trackbars) ändern:
 | `blur` | 1–101 | 15 |
 | `smooth` | 1–31 | 5 |
 | `threshold` | 0–255 | 10 |
-| `min_area` | 0–500 | 15 |
+| `min_area` | 0–500 | 2 |
 
 Bei `blur` und `smooth` ist der kleinste Wert 1 (`max(1, ...)`), denn ein Kernel
 der Größe 0 führt bei `cv2.blur` zu einem Fehler.
@@ -232,7 +264,9 @@ der Größe 0 führt bei `cv2.blur` zu einem Fehler.
 | `p` | Pause (weiter mit einer beliebigen Taste) |
 | `ESC` | Programm beenden |
 
-Fenster: `multi-touch` (Ergebnis), `diff`, `highpass`, `binary`, `parameter`.
+Fenster: `multi-touch` (Ergebnis) und `parameter`. Die Zwischenbilder `diff`,
+`highpass` und `binary` sind im Code auskommentiert und können zum Debuggen wieder
+eingeschaltet werden.
 
 ## Grenzen des Ansatzes
 
@@ -254,11 +288,148 @@ Fenster: `multi-touch` (Ergebnis), `diff`, `highpass`, `binary`, `parameter`.
    des Verhältnisses `w / h` könnte solche Blobs zusätzlich filtern.
 6. **Nahe Finger.** Wenn zwei Finger sehr nah beieinander sind, können ihre Flecken im
    Binärbild zu einem Blob verschmelzen.
-7. **Keine IDs.** Jeder Frame wird einzeln ausgewertet. Ein Finger bekommt keine feste ID
-   über mehrere Frames. Das ist das Thema „Blob Tracking“ im nächsten Praktikum.
+7. **Keine IDs.** Jeder Frame wird einzeln ausgewertet. Das wird in Praktikum 2 gelöst.
 
 ## Teil 1 (GIMP)
 
 Teil 1 wurde mit GIMP und den Einzelbildern in `Bilder/` gemacht. Das Ergebnis liegt in
 `GIMP/1.jpg`. Im Differenzbild hatte die Handfläche ungefähr den Wert 34, der
 Hintergrund war nahe 0.
+
+---
+
+# Praktikum 2 – Blob Tracking
+
+## Ziel
+
+Ein Finger soll über mehrere Frames **dieselbe ID** behalten. Daraus ergeben sich die
+drei Touch-Ereignisse:
+
+| Ereignis | Bedeutung | Im Code |
+|---|---|---|
+| Touch Down | neuer Finger | Blob ohne passenden alten Track bekommt `next_id` |
+| Touch Move | Finger bewegt sich | alter Track bekommt die neue Position, ID bleibt |
+| Touch Up | Finger weg | Track fehlt länger als `MAX_MISSED` Frames und wird gelöscht |
+
+## Datenstruktur
+
+```python
+tracks = {id: (x, y, missed)}
+```
+
+`missed` zählt, wie viele Frames in Folge der Track keinen Blob hatte. `update_tracks`
+gibt jedes Mal ein **neues** Dict und das neue `next_id` zurück:
+
+```python
+tracks, next_id = update_tracks(tracks, centers, next_id, MAX_DIST, MAX_MISSED)
+```
+
+## Algorithmus (Nearest Neighbour, global sortiert)
+
+1. Alle Paare (Abstand, alte ID, neuer Blob) sammeln, deren euklidischer Abstand
+   höchstens `MAX_DIST` ist (`math.hypot`).
+2. Paare nach Abstand **sortieren**.
+3. Von kurz nach lang zuweisen. Jede alte ID und jeder neue Blob wird höchstens einmal
+   benutzt (**Touch Move**).
+4. Alte Tracks ohne Partner bleiben an ihrer letzten Position, `missed` wird erhöht.
+   Erst ab `missed >= MAX_MISSED` werden sie entfernt (**Touch Up**).
+5. Blobs ohne Partner bekommen eine neue ID (**Touch Down**).
+
+Durch die Sortierung wird immer zuerst das global kürzeste Paar zugewiesen. Ohne
+Sortierung hinge das Ergebnis von der Reihenfolge der Tracks ab, und IDs könnten
+vertauscht werden.
+
+## Parameter
+
+| Parameter | Wert | Begründung |
+|---|---|---|
+| `MAX_DIST` | 60 Pixel | Maximaler Weg eines Fingers zwischen zwei Frames (10 FPS) |
+| `MAX_MISSED` | 3 Frames | Bei 10 FPS = 300 ms. Kurzes Flackern der Erkennung erzeugt kein neues Touch Down |
+| `FIRST_ID` | 1 | Erste vergebene ID |
+
+## Anzeige
+
+Die ID wird **gelb** neben jeden Blob geschrieben (`draw_ids`). Tracks mit `missed > 0`
+werden nicht gezeichnet, weil es im aktuellen Frame keine Position für sie gibt. Sie
+werden aber weiter gematcht und bekommen ihre alte ID zurück, wenn der Finger wieder
+auftaucht.
+
+Beim Neustart des Videos werden `tracks` geleert und `next_id` auf `FIRST_ID` gesetzt.
+
+![IDs](Screenshots/ids.png)
+
+## Grenzen
+
+- **Schnelle Bewegungen.** Bewegt sich ein Finger mehr als `MAX_DIST` pro Frame,
+  bekommt er eine neue ID.
+- **Keine Vorhersage.** Es wird nur die letzte Position verglichen, nicht die
+  Bewegungsrichtung. Kreuzen sich zwei Finger, können die IDs vertauscht werden.
+- **Verschmelzende Blobs.** Liegen zwei Finger kurz zu nah beieinander, wird aus zwei
+  Blobs einer, und eine ID geht verloren.
+
+---
+
+# Praktikum 3 – TUIO
+
+## Ziel
+
+Die getrackten Finger werden nach dem **TUIO-1.1-Protokoll** (Profil `/tuio/2Dcur`)
+per UDP an `127.0.0.1:3333` geschickt. Jede Anwendung, die TUIO versteht, kann die
+Touches dann benutzen, ohne etwas über die Bildverarbeitung zu wissen.
+
+## Umsetzung (`src/tuio_sender.py`)
+
+| Funktion | Aufgabe |
+|---|---|
+| `create_server()` | `TuioServer(TUIO_IP, TUIO_PORT)` erstellen |
+| `normalize(x, y, width, height)` | Pixel → Bereich 0..1, auf [0, 1] begrenzt |
+| `send_tracks(server, cursors, tracks, width, height)` | Cursor mit den Tracks abgleichen und ein Bundle senden |
+| `clear(server, cursors)` | Alle Cursor entfernen und sofort ein leeres Bundle senden |
+
+`cursors = {blob_id: Cursor}` wird in `run()` **vor** der Schleife angelegt und von
+`send_tracks` direkt verändert. Es merkt sich, welche Cursor schon existieren.
+`cursors` und `server.cursors` werden immer gemeinsam geändert.
+
+Ablauf in `send_tracks` (jeden Frame):
+
+| Schritt | TUIO | Was passiert? |
+|---|---|---|
+| 1 | fingerUp | Cursor, deren Track gelöscht wurde, aus `cursors` und `server.cursors` entfernen |
+| 2 | fingerDown | Neuer Track: `Cursor(blob_id)` anlegen, die **Tracking-ID ist die `session_id`** |
+| 2 | fingerMoved | Bestehender Track: nur `position` setzen |
+| 3 | – | `server.send_bundle()`: `alive` mit allen aktiven IDs und eine `set`-Nachricht pro Cursor |
+
+**Normalisierung:** TUIO erwartet Koordinaten zwischen 0 und 1. Geteilt wird durch die
+Größe des **Kamerabildes** (`height, width = frame.shape[:2]`, also 752 × 480), nicht
+durch die Fenstergröße. Werte von `fitEllipse` können knapp außerhalb des Bildes
+liegen, deshalb werden sie begrenzt. TUIO und OpenCV haben beide den Ursprung oben
+links, die y-Achse muss also nicht gespiegelt werden.
+
+**Tracks mit `missed > 0`** werden an ihrer letzten Position weiter gesendet. So löst
+kurzes Flackern beim Client kein fingerUp mit sofortigem fingerDown aus.
+
+**Video-Neustart:** `clear()` sendet ein leeres `alive`. Sonst würde ein neuer Finger
+mit einer wiederverwendeten ID beim Client wie ein Sprung des alten Fingers aussehen
+(fingerMoved statt fingerUp/fingerDown).
+
+## Testen
+
+1. TUIO-Client starten, z. B. `TuioDump.exe` (Textausgabe der Ereignisse) oder
+   `TuioDemo.exe` (grafische Anzeige) aus `dump und demo/`, oder den Java-TUIO-Simulator.
+   Alle hören standardmäßig auf Port 3333.
+2. Tracker starten: `uv run python src/blob_detection.py`
+3. Prüfen:
+   - Die Cursor erscheinen an derselben Stelle wie die Blobs im Fenster.
+   - Die `session_id` eines Fingers bleibt gleich und stimmt mit der gelben ID überein.
+   - Beim Video-Neustart verschwinden alle Cursor.
+
+## Grenzen
+
+- **Keine Geschwindigkeit.** `velocity` und `motion_acceleration` werden nicht
+  berechnet und bleiben 0.
+- **Nur Cursor.** Größe und Winkel der Ellipse werden nicht gesendet (dafür gäbe es
+  das Profil `/tuio/2Dblb`).
+- **Feste Adresse.** IP und Port stehen als Konstanten im Code (`TUIO_IP`, `TUIO_PORT`).
+- **UDP.** Verlorene Pakete werden nicht neu gesendet. Weil jedes Bundle den
+  kompletten Zustand (`alive` + alle `set`) enthält, korrigiert sich der Client aber
+  mit dem nächsten Frame.

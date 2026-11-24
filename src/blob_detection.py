@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 import numpy as np
 from blob_tracking import update_tracks
+from tuio_sender import create_server, send_tracks, clear
 
 # --- Parameter der Pipeline (Startwerte der Trackbars) ---
 BLUR_KERNEL = 15
@@ -182,6 +183,8 @@ def run():
 
     background = make_background(cap, NB_FRAMES)
     create_trackbars()
+    server = create_server()
+    cursors = {}
 
     # loop through the video frames
     while True:
@@ -195,12 +198,13 @@ def run():
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             tracks = {}
             next_id = FIRST_ID
+            clear(server, cursors)
 
         success, frame = cap.read()
 
         if success:
             blur_k, smooth_k, thresh, min_area = read_trackbars()
-
+            height, width = frame.shape[:2]
             # make a copy of the original frame
             image = frame.copy()
             gray = to_gray(image)
@@ -219,6 +223,7 @@ def run():
             blobs = filter_blobs(contours, min_area)
             centers = get_centers(blobs)
             tracks, next_id = update_tracks(tracks, centers, next_id, MAX_DIST,MAX_MISSED)
+            send_tracks(server,cursors, tracks, width, height)
             draw_ids(image, tracks)
             cv2.drawContours(image, contours, -1, GREEN, CONTOUR_THICKNESS)  # alle Konturen: grün (-1 = alle zeichnen)
             for c in blobs:
